@@ -6,13 +6,16 @@ from fastapi.responses import FileResponse
 from melo.api import TTS
 from dotenv import load_dotenv
 import tempfile
+import threading
+import time
 
 load_dotenv()
 DEFAULT_SPEED = float(os.getenv("DEFAULT_SPEED"))
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE")
 DEFAULT_SPEAKER_ID = os.getenv("DEFAULT_SPEAKER_ID")
+# Idle timeout for unloading the model (in seconds), defaulting to -1. If the timeout is -1 the model won't be unloaded.
+MODEL_IDLE_TIMEOUT = int(os.getenv("MODEL_IDLE_TIMEOUT", -1))
 device = "auto"  # Will automatically use GPU if available
-
 
 class TextModel(BaseModel):
     text: str
@@ -20,9 +23,39 @@ class TextModel(BaseModel):
     language: str = DEFAULT_LANGUAGE
     speaker_id: str = DEFAULT_SPEAKER_ID
 
-
 app = FastAPI()
 
+class ModelManager:
+    def __init__(self):
+        self.model = None
+        self.last_used = time.time()
+        self.lock = threading.Lock()
+        if MODEL_IDLE_TIMEOUT != -1:
+            self._start_cleanup_thread()
+
+    def _start_cleanup_thread(self):
+        # Start a background thread that will periodically check and unload the model if idle
+        def cleanup():
+            while True:
+                with self.lock:
+                    if self.model and (time.time() - self.last_used) > MODEL_IDLE_TIMEOUT:
+                        print("Unloading model due to inactivity...")
+                        self.model = None
+                time.sleep(60)  # Check every minute
+
+        thread = threading.Thread(target=cleanup)
+        thread.start()
+
+    def get_model(self, language):
+        with self.lock:
+            if not self.model:
+                print("Loading TTS model...")
+                self.model = TTS(language=language, device=device)
+            self.last_used = time.time()
+            return self.model
+
+# Instantiate the model manager
+model_manager = ModelManager()
 
 def get_tts_model(body: TextModel):
     return TTS(language=body.language, device=device)
