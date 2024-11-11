@@ -46,6 +46,13 @@ Assuming you have docker installed and setup.
     
     docker run --name melotts-server -p 8888:8080 --gpus=all -e DEFAULT_SPEED=1 -e DEFAULT_LANGUAGE=EN -e DEFAULT_SPEAKER_ID=EN-Default timhagel/melotts-api-server
 
+### Model Timeout (Optional)
+
+The memory consumed by the model can be freed up periodically by adding MODEL_IDLE_TIMEOUT environment variable and setting it in seconds. 
+This environment variable defaults to -1; this keeps the model in memory indefinitely.
+    
+    -e MODEL_IDLE_TIMEOUT=600 (keeps model in memory for 10 minutes)
+
 ## Call API
 
 **localhost:8888/convert/tts**
