@@ -25,34 +25,34 @@ class TextModel(BaseModel):
 
 app = FastAPI()
 
+# Model manager class to load/unload the TTS model based on idle time
 class ModelManager:
     def __init__(self):
+        # Initialize the model and track the last time it was used
         self.model = None
         self.last_used = time.time()
-        self.lock = threading.Lock()
+        # If the idle timeout is set, start the cleanup loop on app startup
         if MODEL_IDLE_TIMEOUT != -1:
-            self._start_cleanup_thread()
+            app.add_event_handler("startup", self.start_cleanup_loop)
 
-    def _start_cleanup_thread(self):
-        # Start a background thread that will periodically check and unload the model if idle
-        def cleanup():
-            while True:
-                with self.lock:
-                    if self.model and (time.time() - self.last_used) > MODEL_IDLE_TIMEOUT:
-                        print("Unloading model due to inactivity...")
-                        self.model = None
-                time.sleep(60)  # Check every minute
+    # Start the async cleanup loop to periodically check if the model is idle
+    async def start_cleanup_loop(self):
+        while True:
+            # Wait for the defined period before checking
+            await asyncio.sleep(60)  # Check every minute
+            # Unload the model if it's idle longer than the timeout
+            if self.model and (time.time() - self.last_used) > MODEL_IDLE_TIMEOUT:
+                print("Unloading model due to inactivity...")
+                self.model = None
 
-        thread = threading.Thread(target=cleanup, daemon=True)
-        thread.start()
-
+    # Load the TTS model if it’s not already loaded or has been unloaded
     def get_model(self, language):
-        with self.lock:
-            if not self.model:
-                print("Loading TTS model...")
-                self.model = TTS(language=language, device=device)
-            self.last_used = time.time()
-            return self.model
+        if not self.model:
+            print("Loading TTS model...")
+            self.model = TTS(language=language, device=device)
+        # Update the last used time each time the model is accessed
+        self.last_used = time.time()
+        return self.model
 
 # Instantiate the model manager
 model_manager = ModelManager()
