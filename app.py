@@ -43,7 +43,7 @@ class ModelManager:
                         self.model = None
                 time.sleep(60)  # Check every minute
 
-        thread = threading.Thread(target=cleanup)
+        thread = threading.Thread(target=cleanup, daemon=True)
         thread.start()
 
     def get_model(self, language):
@@ -57,8 +57,8 @@ class ModelManager:
 # Instantiate the model manager
 model_manager = ModelManager()
 
-def get_tts_model(body: TextModel):
-    return TTS(language=body.language, device=device)
+def get_tts_model(body: TextModel = Body(...)):
+    return model_manager.get_model(body.language)
 
 
 @app.post("/convert/tts")
