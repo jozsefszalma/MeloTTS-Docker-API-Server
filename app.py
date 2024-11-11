@@ -6,8 +6,10 @@ from fastapi.responses import FileResponse
 from melo.api import TTS
 from dotenv import load_dotenv
 import tempfile
-import threading
 import time
+import asyncio
+import torch
+import gc
 
 load_dotenv()
 DEFAULT_SPEED = float(os.getenv("DEFAULT_SPEED"))
@@ -25,24 +27,27 @@ class TextModel(BaseModel):
 
 app = FastAPI()
 
-# Model manager class to load/unload the TTS model based on idle time
+# Model manager class to load/unload the TTS model 
 class ModelManager:
     def __init__(self):
-        # Initialize the model and track the last time it was used
         self.model = None
         self.last_used = time.time()
-        # If the idle timeout is set, start the cleanup loop on app startup
         if MODEL_IDLE_TIMEOUT != -1:
-            app.add_event_handler("startup", self.start_cleanup_loop)
+            app.add_event_handler("startup", self._schedule_cleanup_task)
 
-    # Start the async cleanup loop to periodically check if the model is idle
+    def _schedule_cleanup_task(self):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.start_cleanup_loop())
+
     async def start_cleanup_loop(self):
         while True:
-            # Wait for the defined period before checking
-            await asyncio.sleep(60)  # Check every minute
-            # Unload the model if it's idle longer than the timeout
+            await asyncio.sleep(60)
             if self.model and (time.time() - self.last_used) > MODEL_IDLE_TIMEOUT:
                 print("Unloading model due to inactivity...")
+                self.model.to('cpu')
+                del self.model
+                gc.collect()
+                torch.cuda.empty_cache() 
                 self.model = None
 
     # Load the TTS model if it’s not already loaded or has been unloaded
@@ -54,7 +59,6 @@ class ModelManager:
         self.last_used = time.time()
         return self.model
 
-# Instantiate the model manager
 model_manager = ModelManager()
 
 def get_tts_model(body: TextModel = Body(...)):
