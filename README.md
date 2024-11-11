@@ -48,8 +48,9 @@ Assuming you have docker installed and setup.
 
 ### Model Timeout (Optional)
 
-The memory consumed by the model can be freed up periodically by adding MODEL_IDLE_TIMEOUT environment variable and setting it in seconds. 
-This environment variable defaults to -1; this keeps the model in memory indefinitely.
+To manage memory usage, you can set an idle timeout for the model with the MODEL_IDLE_TIMEOUT environment variable. This option specifies the number of seconds the model remains in memory without activity before being unloaded. By default, the value is set to -1, meaning the model will stay loaded indefinitely.  
+
+Example setting:  
     
     -e MODEL_IDLE_TIMEOUT=600 (keeps model in memory for 10 minutes)
 
